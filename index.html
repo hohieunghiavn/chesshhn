@@ -3,43 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cờ Vua 2D - Chess Master</title>
+  <title>Cờ Vua - Chơi với máy hoặc 2 người</title>
+  <meta name="theme-color" content="#12161b" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body class="theme-classic">
   <div class="app-container">
-    <header class="app-header">
-      <h1>♟️ CỜ VUA 2D</h1>
-      <div class="controls">
-        <select id="gameMode" title="Chế độ chơi">
-          <option value="pve" selected>Đấu với Máy (AI)</option>
-          <option value="pvp">2 Người Chơi (PvP)</option>
-        </select>
-        <select id="playerSide" title="Chọn phe của bạn khi đấu AI">
-          <option value="w" selected>Phe: Trắng</option>
-          <option value="b">Phe: Đen</option>
-        </select>
-        <select id="aiLevel" title="Độ khó AI">
-          <option value="1">AI: Dễ</option>
-          <option value="2" selected>AI: Trung bình</option>
-          <option value="3">AI: Khó</option>
-        </select>
-        <select id="timeControl" title="Chế độ đồng hồ">
-          <option value="none" selected>Giờ: Không giới hạn</option>
-          <option value="180+2">Giờ: 3+2 (Blitz)</option>
-          <option value="600+0">Giờ: 10 phút (Rapid)</option>
-        </select>
-        <select id="boardTheme" title="Chủ đề bàn cờ">
-          <option value="theme-classic" selected>Màu: Xanh rêu</option>
-          <option value="theme-wood">Màu: Gỗ ấm</option>
-          <option value="theme-ocean">Màu: Xanh dương</option>
-        </select>
-        <button id="btnOnline" class="btn">🌐 Chơi Online</button>
-        <button id="btnNewGame" class="btn primary">Ván Mới</button>
-        <button id="btnUndo" class="btn">Đi Lại</button>
-        <button id="btnHint" class="btn">Gợi Ý</button>
-        <button id="btnFlip" class="btn">Xoay Bàn Cờ</button>
-        <button id="btnSound" class="btn" title="Bật/Tắt âm thanh">🔊</button>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">♞</span><h1>Cờ Vua</h1></div>
+      <div class="topbar-actions">
+        <button id="btnSettings" class="btn icon-btn" aria-label="Cài đặt ván">⚙</button>
       </div>
     </header>
 
@@ -64,6 +40,13 @@
           </div>
           <div class="chess-clock hidden" id="bottomClock">10:00</div>
         </div>
+        <div class="action-bar">
+          <button id="btnNewGame" class="btn act"><span class="ico">＋</span>Ván mới</button>
+          <button id="btnUndo" class="btn act"><span class="ico">↶</span>Đi lại</button>
+          <button id="btnHint" class="btn act"><span class="ico">💡</span>Gợi ý</button>
+          <button id="btnFlip" class="btn act"><span class="ico">⇅</span>Xoay</button>
+          <button id="btnSound" class="btn act" title="Bật/Tắt âm thanh" aria-label="Âm thanh">🔊</button>
+        </div>
       </div>
 
       <aside class="sidebar">
@@ -77,8 +60,8 @@
           <div class="move-list" id="moveList"></div>
         </div>
 
-        <div class="fen-card">
-          <h3>Thế Cờ FEN</h3>
+        <details class="fen-card">
+          <summary>Thế cờ (FEN)</summary>
           <div class="fen-row">
             <input type="text" id="fenInput" placeholder="Dán chuỗi FEN tại đây..." aria-label="Chuỗi FEN" />
           </div>
@@ -86,62 +69,28 @@
             <button id="btnCopyFen" class="btn small">Sao chép FEN</button>
             <button id="btnLoadFen" class="btn small primary">Nạp FEN</button>
           </div>
-        </div>
+        </details>
       </aside>
     </main>
   </div>
 
 
-  <!-- Sảnh chơi online: giai đoạn 1 (mã phòng + kết nối người chơi) -->
-  <section id="onlinePanel" class="online-panel hidden" aria-modal="true" role="dialog" aria-labelledby="onlineTitle">
-    <div class="online-panel-card">
-      <button id="btnOnlineClose" class="online-close" aria-label="Đóng">✕</button>
-      <h2 id="onlineTitle">Chơi cùng bạn bè</h2>
-      <p class="online-subtitle">Tạo phòng riêng hoặc nhập mã phòng của bạn bè.</p>
-      <div class="online-actions">
-        <button id="btnCreateRoom" class="btn primary">Tạo phòng mới</button>
-        <div class="online-join-row">
-          <input id="roomCodeInput" maxlength="6" autocomplete="off" placeholder="MÃ PHÒNG 6 KÝ TỰ" aria-label="Mã phòng" />
-          <button id="btnJoinRoom" class="btn">Tham gia</button>
-        </div>
-      </div>
-      <div id="roomInfo" class="room-info hidden">
-        <div class="room-code-label">MÃ PHÒNG</div>
-        <div class="room-code-display" id="roomCodeDisplay">------</div>
-        <button id="btnCopyRoomCode" class="btn">📋 Sao chép mã</button>
-        <div id="roomStatus" class="room-status">Đang tạo phòng...</div>
-        <div id="roomRoleLabel" class="room-role"></div>
-        <button id="btnStartOnline" class="btn primary hidden" disabled>♟ Bắt đầu ván</button>
-        <button id="btnOnlinePlay" class="btn primary hidden">Mở bàn cờ</button>
-        <div class="room-player-list">
-          <div id="roomHostStatus">♙ Bạn (Trắng): Đã kết nối</div>
-          <div id="roomGuestStatus">♟ Đối thủ (Đen): Đang chờ...</div>
-        </div>
-        <button id="btnLeaveRoom" class="btn">Rời phòng</button>
-      </div>
-      <p id="onlineMessage" class="online-message" role="status"></p>
+  <section id="settingsSheet" class="sheet hidden" role="dialog" aria-modal="true" aria-label="Cài đặt ván">
+    <div class="sheet-card">
+      <div class="sheet-head"><h2>Cài đặt ván</h2><button id="btnSettingsClose" class="sheet-close" aria-label="Đóng">✕</button></div>
+      <label class="field">Chế độ chơi
+        <select id="gameMode"><option value="pve" selected>Đấu với máy</option><option value="pvp">2 người chơi chung máy</option></select></label>
+      <label class="field">Bạn cầm quân
+        <select id="playerSide"><option value="w" selected>Trắng</option><option value="b">Đen</option></select></label>
+      <label class="field">Độ khó của máy
+        <select id="aiLevel"><option value="1">Dễ</option><option value="2" selected>Trung bình</option><option value="3">Khó</option></select></label>
+      <label class="field">Đồng hồ
+        <select id="timeControl"><option value="none" selected>Không giới hạn</option><option value="180+2">Blitz 3+2</option><option value="600+0">Rapid 10 phút</option></select></label>
+      <label class="field">Màu bàn cờ
+        <select id="boardTheme"><option value="theme-classic" selected>Xanh lá</option><option value="theme-wood">Gỗ ấm</option><option value="theme-ocean">Xanh dương</option></select></label>
+      <button id="btnSettingsDone" class="btn primary wide">Xong</button>
     </div>
   </section>
-
-  <style>
-    .hidden { display: none !important; }
-    .online-panel { position:fixed; inset:0; z-index:9999; background:rgba(8,12,18,.76); display:flex; align-items:center; justify-content:center; padding:16px; }
-    .online-panel-card { position:relative; width:min(440px,100%); padding:24px; border-radius:18px; background:#17212b; color:#f3f6fa; box-shadow:0 18px 60px #0008; border:1px solid #405160; }
-    .online-panel-card h2 { margin:0 0 8px; }
-    .online-subtitle { color:#b7c4d0; margin:0 0 20px; }
-    .online-close { position:absolute; right:12px; top:12px; border:0; background:transparent; color:inherit; font-size:20px; cursor:pointer; }
-    .online-actions { display:grid; gap:12px; }
-    .online-join-row { display:flex; gap:8px; }
-    .online-join-row input { min-width:0; flex:1; padding:12px; border-radius:10px; border:1px solid #526273; background:#0d151d; color:#fff; text-transform:uppercase; letter-spacing:2px; }
-    .room-info { margin-top:20px; padding:16px; border-radius:12px; background:#0d151d; text-align:center; }
-    .room-code-label { font-size:12px; color:#a8bac9; letter-spacing:2px; }
-    .room-code-display { font-size:32px; font-weight:800; letter-spacing:6px; margin:8px 0 12px; }
-    .room-status { margin:14px 0; color:#d5e5f3; }
-    .room-player-list { text-align:left; display:grid; gap:8px; padding:12px; border-radius:10px; background:#1b2935; margin:12px 0; }
-    .room-role { margin:10px 0; color:#9be3b1; font-weight:600; }
-    .online-message { min-height:20px; color:#ffd27a; margin:12px 0 0; font-size:14px; }
-    @media(max-width:480px){ .online-panel-card{padding:20px 16px;} .online-join-row{flex-direction:column;} .room-code-display{font-size:26px;} }
-  </style>
 
   <!-- Modal Phong Cấp -->
   <div id="promotionModal" class="modal hidden">
@@ -160,11 +109,19 @@
     </div>
   </div>
 
+  <script>
+    (() => {
+      const s = document.getElementById('settingsSheet'), $ = id => document.getElementById(id);
+      const open = () => s.classList.remove('hidden'), close = () => s.classList.add('hidden');
+      $('btnSettings').addEventListener('click', open);
+      $('btnSettingsClose').addEventListener('click', close);
+      $('btnSettingsDone').addEventListener('click', close);
+      s.addEventListener('click', e => { if (e.target === s) close(); });
+    })();
+  </script>
   <script src="pieces.js"></script>
   <script src="engine.js"></script>
   <script src="ai.js"></script>
   <script src="app.js"></script>
-  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-  <script src="online.js"></script>
 </body>
 </html>

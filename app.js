@@ -12,9 +12,6 @@ class ChessApp {
     this.isAiThinking = false;
     this.gameEndedByTimeout = false;
     this.audioCtx = null;
-    this.onlineRole = null;
-    this.onlineSeq = 0;
-    this.isApplyingRemote = false;
 
     this.clockInterval = null;
     this.timeLeft = { w: null, b: null };
@@ -66,9 +63,9 @@ class ChessApp {
   bindEvents() {
     this.btnNewGame.addEventListener('click', () => this.newGame());
     this.btnModalNewGame.addEventListener('click', () => this.newGame());
+    this.gameOverModal.addEventListener('click', e => { if (e.target === this.gameOverModal) this.gameOverModal.classList.add('hidden'); });
 
     this.btnUndo.addEventListener('click', () => {
-      if (this.onlineRole) { this.statusEl.textContent = 'Không thể đi lại trong ván online.'; return; }
       if (this.isAiThinking || this.gameEndedByTimeout) return;
       const humanColor = this.getHumanColor();
       if (this.gameModeEl.value === 'pve' && this.engine.turn === humanColor && this.engine.history.length >= 2) {
@@ -84,7 +81,6 @@ class ChessApp {
     });
 
     this.btnHint.addEventListener('click', () => {
-      if (this.onlineRole) { this.statusEl.textContent = 'Gợi ý được tắt trong ván online.'; return; }
       if (this.isAiThinking || this.gameEndedByTimeout) return;
       const status = this.engine.getGameStatus();
       if (status.over) return;
@@ -280,7 +276,6 @@ class ChessApp {
   }
 
   newGame() {
-    if (this.onlineRole) { this.statusEl.textContent = 'Trong phòng online, chỉ chủ phòng có thể khởi tạo ván mới.'; return; }
     this.engine.reset();
     this.selectedSquare = null;
     this.legalMoves = [];
@@ -296,10 +291,9 @@ class ChessApp {
   }
 
   canHumanInteractSquare(r, c) {
-    if (this.isAiThinking || this.gameEndedByTimeout || this.onlineSyncPending) return false;
+    if (this.isAiThinking || this.gameEndedByTimeout) return false;
     if (this.engine.getGameStatus().over) return false;
     if (this.gameModeEl.value === 'pve' && this.engine.turn !== this.getHumanColor()) return false;
-    if (this.onlineRole && this.engine.turn !== (this.onlineRole === 'host' ? 'w' : 'b')) return false;
     return true;
   }
 
@@ -379,13 +373,6 @@ class ChessApp {
 
     this.render();
 
-    if (window.OnlineChess?.active && !this.isApplyingRemote) {
-      const seq = this.onlineSeq;
-      this.onlineSyncPending = true;
-      const payload = { fen: this.engine.exportFEN(), history: this.engine.history.map(h => ({ move: h.move, notation: h.notation })) };
-      window.OnlineChess.publishMove(payload, seq).then(ok => { if (ok) this.onlineSeq = Math.max(this.onlineSeq, seq + 1); else this.statusEl.textContent = 'Đồng bộ bị từ chối; hãy kiểm tra kết nối.'; }).catch(err => { this.statusEl.textContent = 'Lỗi đồng bộ: ' + err.message; }).finally(() => { this.onlineSyncPending = false; });
-    }
-
     if (status.over) {
       if (this.clockInterval) clearInterval(this.clockInterval);
       this.showGameOver(status);
@@ -416,56 +403,6 @@ class ChessApp {
     this.gameOverTitle.textContent = status.winner ? `Chiến Thắng: Quân ${status.winner}!` : 'Ván Đấu Hòa!';
     this.gameOverReason.textContent = status.reason;
     this.gameOverModal.classList.remove('hidden');
-  }
-
-  enterOnlineGame(role) {
-    this.onlineRole = role; this.onlineSyncPending = false;
-    this.gameModeEl.value = 'pvp'; this.gameModeEl.disabled = true;
-    this.aiLevelEl.style.display = 'none'; this.playerSideEl.style.display = 'none';
-    this.btnNewGame.disabled = true; this.btnUndo.disabled = true; this.btnHint.disabled = true;
-    this.btnLoadFen.disabled = true;
-    this.engine.reset(); this.onlineSeq = 0; this.selectedSquare = null; this.legalMoves = [];
-    this.hintMove = null; this.isAiThinking = false; this.gameEndedByTimeout = false;
-    this.gameOverModal.classList.add('hidden'); this.promoModal.classList.add('hidden');
-    this.flipped = role === 'guest'; this.setupClockFromSelect(); this.render();
-    this.statusEl.textContent = role === 'host' ? 'Online: Bạn cầm quân Trắng.' : 'Online: Bạn cầm quân Đen.';
-  }
-
-  exitOnlineGame() {
-    this.onlineRole = null; this.onlineSeq = 0; this.onlineSyncPending = false; this.gameModeEl.value = 'pve'; this.gameModeEl.disabled = false;
-    this.btnNewGame.disabled = false; this.btnUndo.disabled = false; this.btnHint.disabled = false; this.btnLoadFen.disabled = false;
-    this.aiLevelEl.style.display = 'inline-block'; this.playerSideEl.style.display = 'inline-block';
-    this.newGame();
-  }
-
-  receiveOnlineState(game, role) {
-    if (!game?.fen || !this.onlineRole) return;
-    if (Number(game.seq || 0) <= this.onlineSeq) return;
-    this.isApplyingRemote = true;
-    let loaded = false;
-    // Replay legal moves from the initial position to retain repetition/history data.
-    this.engine.reset();
-    const remoteHistory = game.history || [];
-    for (const entry of remoteHistory) {
-      const m = entry.move;
-      if (!m?.from || !m?.to) { loaded = false; break; }
-      const legal = this.engine.getLegalMovesForSquare(m.from.r, m.from.c);
-      const match = legal.find(x => x.to.r === m.to.r && x.to.c === m.to.c && (x.promotion || null) === (m.promotion || null));
-      if (!match) { loaded = false; break; }
-      this.engine.makeMove(match); loaded = true;
-    }
-    const replayMatches = loaded && this.engine.exportFEN() === game.fen;
-    if (!replayMatches) loaded = this.engine.loadFEN(game.fen);
-    if (loaded) {
-      // If replay failed, still display move list/captured pieces from the received payload.
-      if (!replayMatches) this.engine.history = remoteHistory.map(h => ({ move: h.move, notation: h.notation || '', prevState: null }));
-      this.onlineSeq = Number(game.seq || 0); this.selectedSquare = null; this.legalMoves = []; this.hintMove = null;
-      this.render();
-      const status = this.engine.getGameStatus();
-      if (status.over) this.showGameOver(status);
-      else this.statusEl.textContent = this.engine.turn === (role === 'host' ? 'w' : 'b') ? 'Đến lượt bạn.' : 'Đang chờ đối thủ đi...';
-    }
-    this.isApplyingRemote = false;
   }
 
   render() {
@@ -530,8 +467,7 @@ class ChessApp {
 
           const isOwnPiece = this.engine.getColor(piece) === this.engine.turn;
           const canDrag = isOwnPiece && !this.isAiThinking && !this.gameEndedByTimeout &&
-            (this.gameModeEl.value === 'pvp' || this.engine.turn === this.getHumanColor()) &&
-            (!this.onlineRole || this.engine.turn === (this.onlineRole === 'host' ? 'w' : 'b'));
+            (this.gameModeEl.value === 'pvp' || this.engine.turn === this.getHumanColor());
           pieceDiv.draggable = canDrag;
 
           pieceDiv.addEventListener('dragstart', (e) => {
@@ -585,7 +521,6 @@ class ChessApp {
     const bottomColor = this.flipped ? 'b' : 'w';
 
     const labelFor = (color) => {
-      if (this.onlineRole) return color === (this.onlineRole === 'host' ? 'w' : 'b') ? `Bạn (${color === 'w' ? 'Trắng' : 'Đen'})` : `Đối thủ (${color === 'w' ? 'Trắng' : 'Đen'})`;
       if (!isPve) return color === 'w' ? 'Người chơi 1 (Trắng)' : 'Người chơi 2 (Đen)';
       if (color === humanColor) return color === 'w' ? 'Bạn (Trắng)' : 'Bạn (Đen)';
       return color === 'w' ? 'Máy (Trắng)' : 'Máy (Đen)';
