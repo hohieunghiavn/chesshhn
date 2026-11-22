@@ -6,7 +6,7 @@
   <title>Cờ Vua 2D - Chess Master</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="theme-classic">
   <div class="app-container">
     <header class="app-header">
       <h1>♟️ CỜ VUA 2D</h1>
@@ -15,13 +15,28 @@
           <option value="pve" selected>Đấu với Máy (AI)</option>
           <option value="pvp">2 Người Chơi (PvP)</option>
         </select>
+        <select id="playerSide" title="Chọn phe của bạn khi đấu AI">
+          <option value="w" selected>Phe: Trắng</option>
+          <option value="b">Phe: Đen</option>
+        </select>
         <select id="aiLevel" title="Độ khó AI">
           <option value="1">AI: Dễ</option>
           <option value="2" selected>AI: Trung bình</option>
           <option value="3">AI: Khó</option>
         </select>
+        <select id="timeControl" title="Chế độ đồng hồ">
+          <option value="none" selected>Giờ: Không giới hạn</option>
+          <option value="180+2">Giờ: 3+2 (Blitz)</option>
+          <option value="600+0">Giờ: 10 phút (Rapid)</option>
+        </select>
+        <select id="boardTheme" title="Chủ đề bàn cờ">
+          <option value="theme-classic" selected>Màu: Xanh rêu</option>
+          <option value="theme-wood">Màu: Gỗ ấm</option>
+          <option value="theme-ocean">Màu: Xanh dương</option>
+        </select>
         <button id="btnNewGame" class="btn primary">Ván Mới</button>
         <button id="btnUndo" class="btn">Đi Lại</button>
+        <button id="btnHint" class="btn">Gợi Ý</button>
         <button id="btnFlip" class="btn">Xoay Bàn Cờ</button>
         <button id="btnSound" class="btn" title="Bật/Tắt âm thanh">🔊</button>
       </div>
@@ -30,8 +45,11 @@
     <main class="game-layout">
       <div class="board-section">
         <div class="player-bar top-player" id="topPlayerBar">
-          <span class="player-name" id="topPlayerName">Máy (Đen)</span>
-          <div class="captured-pieces" id="topCaptured"></div>
+          <div class="player-info">
+            <span class="player-name" id="topPlayerName">Máy (Đen)</span>
+            <div class="captured-pieces" id="topCaptured"></div>
+          </div>
+          <div class="chess-clock hidden" id="topClock">10:00</div>
         </div>
 
         <div class="board-wrapper">
@@ -39,8 +57,11 @@
         </div>
 
         <div class="player-bar bottom-player" id="bottomPlayerBar">
-          <span class="player-name" id="bottomPlayerName">Bạn (Trắng)</span>
-          <div class="captured-pieces" id="bottomCaptured"></div>
+          <div class="player-info">
+            <span class="player-name" id="bottomPlayerName">Bạn (Trắng)</span>
+            <div class="captured-pieces" id="bottomCaptured"></div>
+          </div>
+          <div class="chess-clock hidden" id="bottomClock">10:00</div>
         </div>
       </div>
 
@@ -53,6 +74,17 @@
         <div class="history-card">
           <h3>Lịch Sử Nước Đi</h3>
           <div class="move-list" id="moveList"></div>
+        </div>
+
+        <div class="fen-card">
+          <h3>Thế Cờ FEN</h3>
+          <div class="fen-row">
+            <input type="text" id="fenInput" placeholder="Dán chuỗi FEN tại đây..." aria-label="Chuỗi FEN" />
+          </div>
+          <div class="fen-actions">
+            <button id="btnCopyFen" class="btn small">Sao chép FEN</button>
+            <button id="btnLoadFen" class="btn small primary">Nạp FEN</button>
+          </div>
         </div>
       </aside>
     </main>

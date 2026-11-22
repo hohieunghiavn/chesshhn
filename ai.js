@@ -137,7 +137,6 @@ class ChessAI {
     const moves = this.orderMoves(engine.getAllLegalMoves(engine.turn));
     if (moves.length === 0) return null;
 
-    // Cấp độ Dễ: thêm chút ngẫu nhiên để người mới dễ chơi
     if (depth === 1 && Math.random() < 0.35) {
       return moves[Math.floor(Math.random() * moves.length)];
     }

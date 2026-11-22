@@ -1,4 +1,4 @@
-// Bộ máy luật cờ vua chuẩn FIDE (Di chuyển, Nhập thành, En Passant, Phong cấp, Chiếu, Hòa)
+// Bộ máy luật cờ vua chuẩn FIDE + Xuất/Nhập FEN
 class ChessEngine {
   constructor() {
     this.reset();
@@ -17,11 +17,108 @@ class ChessEngine {
     ];
     this.turn = 'w';
     this.castling = { wK: true, wQ: true, bK: true, bQ: true };
-    this.enPassant = null; // {r, c}
+    this.enPassant = null;
     this.halfMoveClock = 0;
+    this.fullMoveNumber = 1;
     this.history = [];
     this.positionCounts = {};
     this.recordPosition();
+  }
+
+  exportFEN() {
+    const pieceMap = {
+      wK: 'K', wQ: 'Q', wR: 'R', wB: 'B', wN: 'N', wP: 'P',
+      bK: 'k', bQ: 'q', bR: 'r', bB: 'b', bN: 'n', bP: 'p'
+    };
+    const rows = this.board.map(row => {
+      let empty = 0;
+      let str = '';
+      for (const cell of row) {
+        if (!cell) {
+          empty++;
+        } else {
+          if (empty > 0) { str += empty; empty = 0; }
+          str += pieceMap[cell];
+        }
+      }
+      if (empty > 0) str += empty;
+      return str;
+    });
+
+    let castlingStr = '';
+    if (this.castling.wK) castlingStr += 'K';
+    if (this.castling.wQ) castlingStr += 'Q';
+    if (this.castling.bK) castlingStr += 'k';
+    if (this.castling.bQ) castlingStr += 'q';
+    if (!castlingStr) castlingStr = '-';
+
+    const files = 'abcdefgh';
+    const epStr = this.enPassant
+      ? files[this.enPassant.c] + (8 - this.enPassant.r)
+      : '-';
+
+    return `${rows.join('/')} ${this.turn} ${castlingStr} ${epStr} ${this.halfMoveClock} ${this.fullMoveNumber}`;
+  }
+
+  loadFEN(fenStr) {
+    if (!fenStr || typeof fenStr !== 'string') return false;
+    const parts = fenStr.trim().split(/\s+/);
+    if (parts.length < 2) return false;
+
+    const ranks = parts[0].split('/');
+    if (ranks.length !== 8) return false;
+
+    const charToPiece = {
+      K: 'wK', Q: 'wQ', R: 'wR', B: 'wB', N: 'wN', P: 'wP',
+      k: 'bK', q: 'bQ', r: 'bR', b: 'bB', n: 'bN', p: 'bP'
+    };
+
+    const newBoard = [];
+    for (const rank of ranks) {
+      const row = [];
+      for (const ch of rank) {
+        if (/[1-8]/.test(ch)) {
+          const count = parseInt(ch, 10);
+          for (let i = 0; i < count; i++) row.push(null);
+        } else if (charToPiece[ch]) {
+          row.push(charToPiece[ch]);
+        } else {
+          return false;
+        }
+      }
+      if (row.length !== 8) return false;
+      newBoard.push(row);
+    }
+
+    const turn = parts[1] === 'b' ? 'b' : 'w';
+    const castStr = parts[2] || '-';
+    const castling = {
+      wK: castStr.includes('K'),
+      wQ: castStr.includes('Q'),
+      bK: castStr.includes('k'),
+      bQ: castStr.includes('q')
+    };
+
+    let enPassant = null;
+    if (parts[3] && parts[3] !== '-' && parts[3].length === 2) {
+      const c = 'abcdefgh'.indexOf(parts[3][0]);
+      const r = 8 - parseInt(parts[3][1], 10);
+      if (this.inBounds(r, c)) enPassant = { r, c };
+    }
+
+    const halfMoveClock = parts[4] && !isNaN(parseInt(parts[4], 10)) ? parseInt(parts[4], 10) : 0;
+    const fullMoveNumber = parts[5] && !isNaN(parseInt(parts[5], 10)) ? Math.max(1, parseInt(parts[5], 10)) : 1;
+
+    this.board = newBoard;
+    this.turn = turn;
+    this.castling = castling;
+    this.enPassant = enPassant;
+    this.halfMoveClock = halfMoveClock;
+    this.fullMoveNumber = fullMoveNumber;
+    this.history = [];
+    this.positionCounts = {};
+    this.recordPosition();
+    return true;
   }
 
   cloneState() {
@@ -30,7 +127,8 @@ class ChessEngine {
       turn: this.turn,
       castling: { ...this.castling },
       enPassant: this.enPassant ? { ...this.enPassant } : null,
-      halfMoveClock: this.halfMoveClock
+      halfMoveClock: this.halfMoveClock,
+      fullMoveNumber: this.fullMoveNumber
     };
   }
 
@@ -40,6 +138,7 @@ class ChessEngine {
     this.castling = { ...state.castling };
     this.enPassant = state.enPassant ? { ...state.enPassant } : null;
     this.halfMoveClock = state.halfMoveClock;
+    this.fullMoveNumber = state.fullMoveNumber;
   }
 
   getPositionKey() {
@@ -79,21 +178,18 @@ class ChessEngine {
   }
 
   isSquareAttacked(r, c, byColor) {
-    // Tốt tấn công
     const pawnDir = byColor === 'w' ? 1 : -1;
     for (const dc of [-1, 1]) {
       const pr = r + pawnDir, pc = c + dc;
       if (this.inBounds(pr, pc) && this.board[pr][pc] === byColor + 'P') return true;
     }
 
-    // Mã tấn công
     const knightMoves = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
     for (const [dr, dc] of knightMoves) {
       const nr = r + dr, nc = c + dc;
       if (this.inBounds(nr, nc) && this.board[nr][nc] === byColor + 'N') return true;
     }
 
-    // Vua tấn công
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
         if (dr === 0 && dc === 0) continue;
@@ -102,7 +198,6 @@ class ChessEngine {
       }
     }
 
-    // Xe / Hậu (thẳng & ngang)
     const rookDirs = [[-1,0],[1,0],[0,-1],[0,1]];
     for (const [dr, dc] of rookDirs) {
       let nr = r + dr, nc = c + dc;
@@ -116,7 +211,6 @@ class ChessEngine {
       }
     }
 
-    // Tượng / Hậu (chéo)
     const bishopDirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
     for (const [dr, dc] of bishopDirs) {
       let nr = r + dr, nc = c + dc;
@@ -163,20 +257,17 @@ class ChessEngine {
       const startRow = color === 'w' ? 6 : 1;
       const promoRow = color === 'w' ? 0 : 7;
 
-      // Tiến 1 ô
       if (this.inBounds(r + dir, c) && !this.board[r + dir][c]) {
         if (r + dir === promoRow) {
           ['Q','R','B','N'].forEach(p => addMove(r + dir, c, { promotion: color + p }));
         } else {
           addMove(r + dir, c);
         }
-        // Tiến 2 ô
         if (r === startRow && !this.board[r + 2 * dir][c]) {
           addMove(r + 2 * dir, c, { doublePawn: true });
         }
       }
 
-      // Ăn chéo & En Passant
       for (const dc of [-1, 1]) {
         const nr = r + dir, nc = c + dc;
         if (!this.inBounds(nr, nc)) continue;
@@ -227,17 +318,14 @@ class ChessEngine {
         }
       }
 
-      // Nhập thành
       const homeRow = color === 'w' ? 7 : 0;
       if (r === homeRow && c === 4 && !this.isInCheck(color)) {
-        // Cánh Vua (O-O)
         if (this.castling[color + 'K'] &&
             !this.board[homeRow][5] && !this.board[homeRow][6] &&
             !this.isSquareAttacked(homeRow, 5, enemy) &&
             !this.isSquareAttacked(homeRow, 6, enemy)) {
           addMove(homeRow, 6, { castle: 'K' });
         }
-        // Cánh Hậu (O-O-O)
         if (this.castling[color + 'Q'] &&
             !this.board[homeRow][3] && !this.board[homeRow][2] && !this.board[homeRow][1] &&
             !this.isSquareAttacked(homeRow, 3, enemy) &&
@@ -296,7 +384,6 @@ class ChessEngine {
       this.board[from.r][0] = null;
     }
 
-    // Cập nhật quyền nhập thành
     if (type === 'K') {
       this.castling[color + 'K'] = false;
       this.castling[color + 'Q'] = false;
@@ -321,6 +408,10 @@ class ChessEngine {
       this.halfMoveClock = 0;
     } else {
       this.halfMoveClock++;
+    }
+
+    if (this.turn === 'b') {
+      this.fullMoveNumber++;
     }
 
     this.applyMoveRaw(move);
@@ -376,9 +467,9 @@ class ChessEngine {
         if (this.board[r][c]) pieces.push(this.board[r][c]);
       }
     }
-    if (pieces.length === 2) return true; // K vs K
+    if (pieces.length === 2) return true;
     if (pieces.length === 3) {
-      return pieces.some(p => p[1] === 'B' || p[1] === 'N'); // K+B vs K hoặc K+N vs K
+      return pieces.some(p => p[1] === 'B' || p[1] === 'N');
     }
     return false;
   }

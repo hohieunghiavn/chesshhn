@@ -1,4 +1,4 @@
-// Điều khiển giao diện, âm thanh Web Audio API và vòng lặp sự kiện
+// Điều khiển giao diện, kéo thả quân cờ, đồng hồ tính giờ, FEN, gợi ý & âm thanh
 class ChessApp {
   constructor() {
     this.engine = new ChessEngine();
@@ -6,14 +6,21 @@ class ChessApp {
 
     this.selectedSquare = null;
     this.legalMoves = [];
+    this.hintMove = null;
     this.flipped = false;
     this.soundEnabled = true;
     this.isAiThinking = false;
-    this.pendingPromotionMoves = null;
+    this.gameEndedByTimeout = false;
     this.audioCtx = null;
+
+    this.clockInterval = null;
+    this.timeLeft = { w: null, b: null };
+    this.increment = 0;
 
     this.cacheDOM();
     this.bindEvents();
+    this.setupClockFromSelect();
+    this.syncOrientationWithPlayerSide();
     this.render();
   }
 
@@ -26,13 +33,24 @@ class ChessApp {
     this.bottomCapturedEl = document.getElementById('bottomCaptured');
     this.topNameEl = document.getElementById('topPlayerName');
     this.bottomNameEl = document.getElementById('bottomPlayerName');
+    this.topClockEl = document.getElementById('topClock');
+    this.bottomClockEl = document.getElementById('bottomClock');
 
     this.gameModeEl = document.getElementById('gameMode');
+    this.playerSideEl = document.getElementById('playerSide');
     this.aiLevelEl = document.getElementById('aiLevel');
+    this.timeControlEl = document.getElementById('timeControl');
+    this.boardThemeEl = document.getElementById('boardTheme');
+
     this.btnNewGame = document.getElementById('btnNewGame');
     this.btnUndo = document.getElementById('btnUndo');
+    this.btnHint = document.getElementById('btnHint');
     this.btnFlip = document.getElementById('btnFlip');
     this.btnSound = document.getElementById('btnSound');
+
+    this.fenInputEl = document.getElementById('fenInput');
+    this.btnCopyFen = document.getElementById('btnCopyFen');
+    this.btnLoadFen = document.getElementById('btnLoadFen');
 
     this.promoModal = document.getElementById('promotionModal');
     this.promoOptionsEl = document.getElementById('promotionOptions');
@@ -47,8 +65,9 @@ class ChessApp {
     this.btnModalNewGame.addEventListener('click', () => this.newGame());
 
     this.btnUndo.addEventListener('click', () => {
-      if (this.isAiThinking) return;
-      if (this.gameModeEl.value === 'pve' && this.engine.turn === 'w' && this.engine.history.length >= 2) {
+      if (this.isAiThinking || this.gameEndedByTimeout) return;
+      const humanColor = this.getHumanColor();
+      if (this.gameModeEl.value === 'pve' && this.engine.turn === humanColor && this.engine.history.length >= 2) {
         this.engine.undoMove();
         this.engine.undoMove();
       } else {
@@ -56,7 +75,20 @@ class ChessApp {
       }
       this.selectedSquare = null;
       this.legalMoves = [];
+      this.hintMove = null;
       this.render();
+    });
+
+    this.btnHint.addEventListener('click', () => {
+      if (this.isAiThinking || this.gameEndedByTimeout) return;
+      const status = this.engine.getGameStatus();
+      if (status.over) return;
+      const best = this.ai.getBestMove(this.engine, 2);
+      if (best) {
+        this.hintMove = best;
+        this.statusEl.textContent = `Gợi ý: ${this.engine.buildNotation(best)}`;
+        this.renderBoard();
+      }
     });
 
     this.btnFlip.addEventListener('click', () => {
@@ -69,10 +101,138 @@ class ChessApp {
       this.btnSound.textContent = this.soundEnabled ? '🔊' : '🔇';
     });
 
+    this.boardThemeEl.addEventListener('change', () => {
+      document.body.className = this.boardThemeEl.value;
+    });
+
     this.gameModeEl.addEventListener('change', () => {
-      this.aiLevelEl.style.display = this.gameModeEl.value === 'pve' ? 'inline-block' : 'none';
+      const isPve = this.gameModeEl.value === 'pve';
+      this.aiLevelEl.style.display = isPve ? 'inline-block' : 'none';
+      this.playerSideEl.style.display = isPve ? 'inline-block' : 'none';
       this.newGame();
     });
+
+    this.playerSideEl.addEventListener('change', () => {
+      this.newGame();
+    });
+
+    this.timeControlEl.addEventListener('change', () => {
+      this.newGame();
+    });
+
+    this.btnCopyFen.addEventListener('click', () => {
+      const fen = this.engine.exportFEN();
+      this.fenInputEl.value = fen;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(fen).catch(() => {});
+      }
+      this.statusEl.textContent = 'Đã sao chép chuỗi FEN!';
+    });
+
+    this.btnLoadFen.addEventListener('click', () => {
+      const ok = this.engine.loadFEN(this.fenInputEl.value);
+      if (!ok) {
+        this.statusEl.textContent = 'Chuỗi FEN không hợp lệ!';
+        return;
+      }
+      this.selectedSquare = null;
+      this.legalMoves = [];
+      this.hintMove = null;
+      this.isAiThinking = false;
+      this.gameEndedByTimeout = false;
+      this.gameOverModal.classList.add('hidden');
+      this.setupClockFromSelect();
+      this.render();
+      this.statusEl.textContent = 'Đã nạp thế cờ từ FEN.';
+      this.maybeTriggerAiTurn();
+    });
+  }
+
+  getHumanColor() {
+    if (this.gameModeEl.value === 'pvp') return this.engine.turn;
+    return this.playerSideEl.value === 'b' ? 'b' : 'w';
+  }
+
+  getAiColor() {
+    return this.getHumanColor() === 'w' ? 'b' : 'w';
+  }
+
+  syncOrientationWithPlayerSide() {
+    if (this.gameModeEl.value === 'pve') {
+      this.flipped = this.playerSideEl.value === 'b';
+    }
+  }
+
+  setupClockFromSelect() {
+    if (this.clockInterval) {
+      clearInterval(this.clockInterval);
+      this.clockInterval = null;
+    }
+
+    const val = this.timeControlEl.value;
+    if (val === 'none') {
+      this.timeLeft = { w: null, b: null };
+      this.increment = 0;
+      this.topClockEl.classList.add('hidden');
+      this.bottomClockEl.classList.add('hidden');
+      return;
+    }
+
+    const [baseStr, incStr] = val.split('+');
+    const baseSec = parseInt(baseStr, 10);
+    this.increment = parseInt(incStr || '0', 10);
+    this.timeLeft = { w: baseSec, b: baseSec };
+
+    this.topClockEl.classList.remove('hidden');
+    this.bottomClockEl.classList.remove('hidden');
+    this.updateClockDisplay();
+
+    this.clockInterval = setInterval(() => {
+      if (this.gameEndedByTimeout || this.isAiThinking) return;
+      const status = this.engine.getGameStatus();
+      if (status.over) {
+        clearInterval(this.clockInterval);
+        return;
+      }
+
+      const activeColor = this.engine.turn;
+      if (this.timeLeft[activeColor] !== null) {
+        this.timeLeft[activeColor] = Math.max(0, this.timeLeft[activeColor] - 1);
+        this.updateClockDisplay();
+
+        if (this.timeLeft[activeColor] <= 0) {
+          clearInterval(this.clockInterval);
+          this.gameEndedByTimeout = true;
+          const winner = activeColor === 'w' ? 'Đen' : 'Trắng';
+          this.showGameOver({
+            over: true,
+            winner,
+            reason: `Hết giờ! Quân ${activeColor === 'w' ? 'Trắng' : 'Đen'} hết thời gian, ${winner} thắng.`
+          });
+        }
+      }
+    }, 1000);
+  }
+
+  formatTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  updateClockDisplay() {
+    if (this.timeLeft.w === null) return;
+    const topColor = this.flipped ? 'w' : 'b';
+    const bottomColor = this.flipped ? 'b' : 'w';
+
+    this.topClockEl.textContent = this.formatTime(this.timeLeft[topColor]);
+    this.bottomClockEl.textContent = this.formatTime(this.timeLeft[bottomColor]);
+
+    this.topClockEl.classList.toggle('active', this.engine.turn === topColor);
+    this.bottomClockEl.classList.toggle('active', this.engine.turn === bottomColor);
+
+    this.topClockEl.classList.toggle('low-time', this.timeLeft[topColor] <= 20);
+    this.bottomClockEl.classList.toggle('low-time', this.timeLeft[bottomColor] <= 20);
   }
 
   playSound(type) {
@@ -118,15 +278,26 @@ class ChessApp {
     this.engine.reset();
     this.selectedSquare = null;
     this.legalMoves = [];
+    this.hintMove = null;
     this.isAiThinking = false;
+    this.gameEndedByTimeout = false;
     this.promoModal.classList.add('hidden');
     this.gameOverModal.classList.add('hidden');
+    this.syncOrientationWithPlayerSide();
+    this.setupClockFromSelect();
     this.render();
+    this.maybeTriggerAiTurn();
+  }
+
+  canHumanInteractSquare(r, c) {
+    if (this.isAiThinking || this.gameEndedByTimeout) return false;
+    if (this.engine.getGameStatus().over) return false;
+    if (this.gameModeEl.value === 'pve' && this.engine.turn !== this.getHumanColor()) return false;
+    return true;
   }
 
   handleSquareClick(r, c) {
-    if (this.isAiThinking) return;
-    if (this.gameModeEl.value === 'pve' && this.engine.turn === 'b') return;
+    if (!this.canHumanInteractSquare(r, c)) return;
 
     const matchingMoves = this.legalMoves.filter(m => m.to.r === r && m.to.c === c);
     if (matchingMoves.length > 0) {
@@ -146,7 +317,22 @@ class ChessApp {
       this.selectedSquare = null;
       this.legalMoves = [];
     }
-    this.render();
+    this.renderBoard();
+  }
+
+  handleDropMove(fromR, fromC, toR, toC) {
+    if (!this.canHumanInteractSquare(fromR, fromC)) return;
+    const movesFromPiece = this.engine.getLegalMovesForSquare(fromR, fromC);
+    const matchingMoves = movesFromPiece.filter(m => m.to.r === toR && m.to.c === toC);
+    if (matchingMoves.length === 0) return;
+
+    this.selectedSquare = { r: fromR, c: fromC };
+    this.legalMoves = movesFromPiece;
+    if (matchingMoves.length > 1) {
+      this.showPromotionModal(matchingMoves);
+    } else {
+      this.executeMove(matchingMoves[0]);
+    }
   }
 
   showPromotionModal(moves) {
@@ -165,9 +351,16 @@ class ChessApp {
   }
 
   executeMove(move) {
+    const movedColor = this.engine.turn;
     const status = this.engine.makeMove(move);
+
+    if (this.timeLeft[movedColor] !== null && this.increment > 0) {
+      this.timeLeft[movedColor] += this.increment;
+    }
+
     this.selectedSquare = null;
     this.legalMoves = [];
+    this.hintMove = null;
 
     if (status.state === 'check' || status.state === 'checkmate') {
       this.playSound('check');
@@ -180,22 +373,29 @@ class ChessApp {
     this.render();
 
     if (status.over) {
+      if (this.clockInterval) clearInterval(this.clockInterval);
       this.showGameOver(status);
       return;
     }
 
-    if (this.gameModeEl.value === 'pve' && this.engine.turn === 'b') {
-      this.isAiThinking = true;
-      this.statusEl.textContent = 'Máy đang suy nghĩ...';
-      setTimeout(() => {
-        const depth = parseInt(this.aiLevelEl.value, 10);
-        const aiMove = this.ai.getBestMove(this.engine, depth);
-        this.isAiThinking = false;
-        if (aiMove) {
-          this.executeMove(aiMove);
-        }
-      }, 220);
-    }
+    this.maybeTriggerAiTurn();
+  }
+
+  maybeTriggerAiTurn() {
+    if (this.gameModeEl.value !== 'pve') return;
+    if (this.engine.turn !== this.getAiColor()) return;
+    if (this.engine.getGameStatus().over || this.gameEndedByTimeout) return;
+
+    this.isAiThinking = true;
+    this.statusEl.textContent = 'Máy đang suy nghĩ...';
+    setTimeout(() => {
+      const depth = parseInt(this.aiLevelEl.value, 10);
+      const aiMove = this.ai.getBestMove(this.engine, depth);
+      this.isAiThinking = false;
+      if (aiMove) {
+        this.executeMove(aiMove);
+      }
+    }, 220);
   }
 
   showGameOver(status) {
@@ -209,6 +409,10 @@ class ChessApp {
     this.renderStatus();
     this.renderHistory();
     this.renderCaptured();
+    this.updateClockDisplay();
+    if (this.fenInputEl) {
+      this.fenInputEl.value = this.engine.exportFEN();
+    }
   }
 
   renderBoard() {
@@ -234,6 +438,9 @@ class ChessApp {
         if (lastMove && ((lastMove.from.r === r && lastMove.from.c === c) || (lastMove.to.r === r && lastMove.to.c === c))) {
           sq.classList.add('last-move');
         }
+        if (this.hintMove && ((this.hintMove.from.r === r && this.hintMove.from.c === c) || (this.hintMove.to.r === r && this.hintMove.to.c === c))) {
+          sq.classList.add('hint-sq');
+        }
         if (kingPos && kingPos.r === r && kingPos.c === c) {
           sq.classList.add('in-check');
         }
@@ -256,8 +463,36 @@ class ChessApp {
           const pieceDiv = document.createElement('div');
           pieceDiv.className = 'piece';
           pieceDiv.innerHTML = PIECE_SVGS[piece];
+
+          const isOwnPiece = this.engine.getColor(piece) === this.engine.turn;
+          const canDrag = isOwnPiece && !this.isAiThinking && !this.gameEndedByTimeout &&
+            (this.gameModeEl.value === 'pvp' || this.engine.turn === this.getHumanColor());
+          pieceDiv.draggable = canDrag;
+
+          pieceDiv.addEventListener('dragstart', (e) => {
+            if (!canDrag) {
+              e.preventDefault();
+              return;
+            }
+            this.selectedSquare = { r, c };
+            this.legalMoves = this.engine.getLegalMovesForSquare(r, c);
+            e.dataTransfer.setData('text/plain', `${r},${c}`);
+          });
+
           sq.appendChild(pieceDiv);
         }
+
+        sq.addEventListener('dragover', (e) => {
+          e.preventDefault();
+        });
+
+        sq.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const raw = e.dataTransfer.getData('text/plain');
+          if (!raw) return;
+          const [fromR, fromC] = raw.split(',').map(Number);
+          this.handleDropMove(fromR, fromC, r, c);
+        });
 
         const isLegalTarget = this.legalMoves.some(m => m.to.r === r && m.to.c === c);
         if (isLegalTarget) {
@@ -275,21 +510,23 @@ class ChessApp {
   renderStatus() {
     const status = this.engine.getGameStatus();
     this.turnEl.textContent = `Lượt: ${this.engine.turn === 'w' ? 'Trắng' : 'Đen'}`;
-    if (!this.isAiThinking) {
+    if (!this.isAiThinking && !this.gameEndedByTimeout) {
       this.statusEl.textContent = status.reason;
     }
 
     const isPve = this.gameModeEl.value === 'pve';
+    const humanColor = this.getHumanColor();
     const topColor = this.flipped ? 'w' : 'b';
     const bottomColor = this.flipped ? 'b' : 'w';
 
-    this.topNameEl.textContent = topColor === 'b'
-      ? (isPve ? 'Máy (Đen)' : 'Người chơi 2 (Đen)')
-      : (isPve ? 'Bạn (Trắng)' : 'Người chơi 1 (Trắng)');
+    const labelFor = (color) => {
+      if (!isPve) return color === 'w' ? 'Người chơi 1 (Trắng)' : 'Người chơi 2 (Đen)';
+      if (color === humanColor) return color === 'w' ? 'Bạn (Trắng)' : 'Bạn (Đen)';
+      return color === 'w' ? 'Máy (Trắng)' : 'Máy (Đen)';
+    };
 
-    this.bottomNameEl.textContent = bottomColor === 'w'
-      ? (isPve ? 'Bạn (Trắng)' : 'Người chơi 1 (Trắng)')
-      : (isPve ? 'Máy (Đen)' : 'Người chơi 2 (Đen)');
+    this.topNameEl.textContent = labelFor(topColor);
+    this.bottomNameEl.textContent = labelFor(bottomColor);
   }
 
   renderHistory() {
