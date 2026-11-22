@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cờ Vua 2D - Chess Master</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <h1>♟️ CỜ VUA 2D</h1>
+      <div class="controls">
+        <select id="gameMode" title="Chế độ chơi">
+          <option value="pve" selected>Đấu với Máy (AI)</option>
+          <option value="pvp">2 Người Chơi (PvP)</option>
+        </select>
+        <select id="aiLevel" title="Độ khó AI">
+          <option value="1">AI: Dễ</option>
+          <option value="2" selected>AI: Trung bình</option>
+          <option value="3">AI: Khó</option>
+        </select>
+        <button id="btnNewGame" class="btn primary">Ván Mới</button>
+        <button id="btnUndo" class="btn">Đi Lại</button>
+        <button id="btnFlip" class="btn">Xoay Bàn Cờ</button>
+        <button id="btnSound" class="btn" title="Bật/Tắt âm thanh">🔊</button>
+      </div>
+    </header>
+
+    <main class="game-layout">
+      <div class="board-section">
+        <div class="player-bar top-player" id="topPlayerBar">
+          <span class="player-name" id="topPlayerName">Máy (Đen)</span>
+          <div class="captured-pieces" id="topCaptured"></div>
+        </div>
+
+        <div class="board-wrapper">
+          <div id="chessBoard" class="chess-board"></div>
+        </div>
+
+        <div class="player-bar bottom-player" id="bottomPlayerBar">
+          <span class="player-name" id="bottomPlayerName">Bạn (Trắng)</span>
+          <div class="captured-pieces" id="bottomCaptured"></div>
+        </div>
+      </div>
+
+      <aside class="sidebar">
+        <div class="status-card">
+          <div class="turn-indicator" id="turnIndicator">Lượt: Trắng</div>
+          <div class="game-status" id="gameStatus">Trận đấu đang diễn ra</div>
+        </div>
+
+        <div class="history-card">
+          <h3>Lịch Sử Nước Đi</h3>
+          <div class="move-list" id="moveList"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- Modal Phong Cấp -->
+  <div id="promotionModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Chọn quân phong cấp</h3>
+      <div class="promotion-options" id="promotionOptions"></div>
+    </div>
+  </div>
+
+  <!-- Modal Kết Thúc -->
+  <div id="gameOverModal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="gameOverTitle">Kết Thúc Ván Đấu</h2>
+      <p id="gameOverReason"></p>
+      <button id="btnModalNewGame" class="btn primary">Chơi Ván Mới</button>
+    </div>
+  </div>
+
+  <script src="pieces.js"></script>
+  <script src="engine.js"></script>
+  <script src="ai.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
