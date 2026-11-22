@@ -1,4 +1,4 @@
-// Trí tuệ nhân tạo Cờ Vua sử dụng Minimax + Alpha-Beta Pruning + Piece-Square Tables
+// Trí tuệ nhân tạo Cờ Vua sử dụng Minimax + Alpha-Beta Pruning + Piece-Square Tables + Hỗ trợ tính năng mở rộng
 class ChessAI {
   constructor() {
     this.pieceValues = { P: 100, N: 320, B: 330, R: 500, Q: 900, K: 20000 };
@@ -76,7 +76,12 @@ class ChessAI {
         const color = piece[0];
         const type = piece[1];
         const rowIdx = color === 'w' ? r : 7 - r;
-        const val = this.pieceValues[type] + this.pst[type][rowIdx][c];
+        let val = this.pieceValues[type] + this.pst[type][rowIdx][c];
+
+        if (engine.parasite && engine.parasite.enabled) {
+          val += engine.parasite.evaluatePieceBonus(r, c, this.pieceValues);
+        }
+
         score += color === 'w' ? val : -val;
       }
     }
@@ -85,8 +90,14 @@ class ChessAI {
 
   orderMoves(moves) {
     return moves.sort((a, b) => {
-      const scoreA = (a.captured ? 10 * this.pieceValues[a.captured[1]] : 0) + (a.promotion ? 800 : 0);
-      const scoreB = (b.captured ? 10 * this.pieceValues[b.captured[1]] : 0) + (b.promotion ? 800 : 0);
+      const scoreA =
+        (a.captured ? 10 * this.pieceValues[a.captured[1]] : 0) +
+        (a.promotion ? 800 : 0) +
+        (a.usedParasite ? 120 : 0);
+      const scoreB =
+        (b.captured ? 10 * this.pieceValues[b.captured[1]] : 0) +
+        (b.promotion ? 800 : 0) +
+        (b.usedParasite ? 120 : 0);
       return scoreB - scoreA;
     });
   }

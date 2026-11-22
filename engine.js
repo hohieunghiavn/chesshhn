@@ -1,6 +1,7 @@
-// Bộ máy luật cờ vua chuẩn FIDE + Xuất/Nhập FEN
+// Bộ máy luật cờ vua chuẩn FIDE + Xuất/Nhập FEN + Hook tính năng mở rộng
 class ChessEngine {
   constructor() {
+    this.parasite = typeof ParasiteFeature !== 'undefined' ? new ParasiteFeature() : null;
     this.reset();
   }
 
@@ -22,6 +23,7 @@ class ChessEngine {
     this.fullMoveNumber = 1;
     this.history = [];
     this.positionCounts = {};
+    if (this.parasite) this.parasite.reset();
     this.recordPosition();
   }
 
@@ -117,6 +119,7 @@ class ChessEngine {
     this.fullMoveNumber = fullMoveNumber;
     this.history = [];
     this.positionCounts = {};
+    if (this.parasite) this.parasite.reset();
     this.recordPosition();
     return true;
   }
@@ -128,7 +131,8 @@ class ChessEngine {
       castling: { ...this.castling },
       enPassant: this.enPassant ? { ...this.enPassant } : null,
       halfMoveClock: this.halfMoveClock,
-      fullMoveNumber: this.fullMoveNumber
+      fullMoveNumber: this.fullMoveNumber,
+      parasiteState: this.parasite ? this.parasite.cloneState() : null
     };
   }
 
@@ -139,6 +143,7 @@ class ChessEngine {
     this.enPassant = state.enPassant ? { ...state.enPassant } : null;
     this.halfMoveClock = state.halfMoveClock;
     this.fullMoveNumber = state.fullMoveNumber;
+    if (this.parasite) this.parasite.restoreState(state.parasiteState);
   }
 
   getPositionKey() {
@@ -146,7 +151,8 @@ class ChessEngine {
       b: this.board,
       t: this.turn,
       c: this.castling,
-      e: this.enPassant
+      e: this.enPassant,
+      p: this.parasite && this.parasite.enabled ? this.parasite.parasites : null
     });
   }
 
@@ -221,6 +227,25 @@ class ChessEngine {
           break;
         }
         nr += dr; nc += dc;
+      }
+    }
+
+    // Kiểm tra đòn tấn công từ kỹ năng ký sinh của quân đối phương (nếu đang bật)
+    if (this.parasite && this.parasite.enabled) {
+      for (let pr = 0; pr < 8; pr++) {
+        for (let pc = 0; pc < 8; pc++) {
+          const attacker = this.board[pr][pc];
+          if (!attacker || this.getColor(attacker) !== byColor) continue;
+          const skill = this.parasite.getAt(pr, pc);
+          if (!skill) continue;
+          const extraMoves = [];
+          this.parasite.getExtraPseudoMoves(this, pr, pc, [], (toR, toC, extra) => {
+            extraMoves.push({ to: { r: toR, c: toC }, ...extra });
+          });
+          if (extraMoves.some(m => m.to.r === r && m.to.c === c)) {
+            return true;
+          }
+        }
       }
     }
 
@@ -335,6 +360,10 @@ class ChessEngine {
       }
     }
 
+    if (this.parasite) {
+      this.parasite.getExtraPseudoMoves(this, r, c, moves, addMove);
+    }
+
     return moves;
   }
 
@@ -398,6 +427,10 @@ class ChessEngine {
     if (to.r === 0 && to.c === 7) this.castling.bK = false;
 
     this.enPassant = doublePawn ? { r: (from.r + to.r) / 2, c: from.c } : null;
+
+    if (this.parasite) {
+      this.parasite.onMoveApplied(this, move);
+    }
   }
 
   makeMove(move) {
@@ -457,6 +490,7 @@ class ChessEngine {
     }
     str += toSq;
     if (move.promotion) str += '=' + this.getType(move.promotion);
+    if (move.usedParasite) str += `⚡${move.usedParasite}`;
     return str;
   }
 

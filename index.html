@@ -51,6 +51,7 @@
 
       <aside class="sidebar">
         <div class="status-card">
+          <div class="mode-badge" id="modeBadge">Chế độ: Cờ Vua Chuẩn</div>
           <div class="turn-indicator" id="turnIndicator">Lượt: Trắng</div>
           <div class="game-status" id="gameStatus">Trận đấu đang diễn ra</div>
         </div>
@@ -78,6 +79,12 @@
   <section id="settingsSheet" class="sheet hidden" role="dialog" aria-modal="true" aria-label="Cài đặt ván">
     <div class="sheet-card">
       <div class="sheet-head"><h2>Cài đặt ván</h2><button id="btnSettingsClose" class="sheet-close" aria-label="Đóng">✕</button></div>
+      <label class="field">Tính năng trò chơi
+        <select id="specialMode">
+          <option value="classic" selected>Cờ vua chuẩn (FIDE)</option>
+          <option value="parasite">Ký sinh kỹ năng (Ăn quân hấp thụ)</option>
+        </select>
+      </label>
       <label class="field">Chế độ chơi
         <select id="gameMode"><option value="pve" selected>Đấu với máy</option><option value="pvp">2 người chơi chung máy</option></select></label>
       <label class="field">Bạn cầm quân
@@ -120,6 +127,7 @@
     })();
   </script>
   <script src="pieces.js"></script>
+  <script src="parasite.js"></script>
   <script src="engine.js"></script>
   <script src="ai.js"></script>
   <script src="app.js"></script>

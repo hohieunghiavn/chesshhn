@@ -1,4 +1,4 @@
-// Điều khiển giao diện, kéo thả quân cờ, đồng hồ tính giờ, FEN, gợi ý & âm thanh
+// Điều khiển giao diện, kéo thả quân cờ, đồng hồ tính giờ, FEN, gợi ý, âm thanh & chế độ chơi đặc biệt
 class ChessApp {
   constructor() {
     this.engine = new ChessEngine();
@@ -19,6 +19,7 @@ class ChessApp {
 
     this.cacheDOM();
     this.bindEvents();
+    this.syncSpecialModeFromSelect();
     this.setupClockFromSelect();
     this.syncOrientationWithPlayerSide();
     this.render();
@@ -28,6 +29,7 @@ class ChessApp {
     this.boardEl = document.getElementById('chessBoard');
     this.turnEl = document.getElementById('turnIndicator');
     this.statusEl = document.getElementById('gameStatus');
+    this.modeBadgeEl = document.getElementById('modeBadge');
     this.moveListEl = document.getElementById('moveList');
     this.topCapturedEl = document.getElementById('topCaptured');
     this.bottomCapturedEl = document.getElementById('bottomCaptured');
@@ -36,6 +38,7 @@ class ChessApp {
     this.topClockEl = document.getElementById('topClock');
     this.bottomClockEl = document.getElementById('bottomClock');
 
+    this.specialModeEl = document.getElementById('specialMode');
     this.gameModeEl = document.getElementById('gameMode');
     this.playerSideEl = document.getElementById('playerSide');
     this.aiLevelEl = document.getElementById('aiLevel');
@@ -106,6 +109,12 @@ class ChessApp {
       document.body.className = this.boardThemeEl.value;
     });
 
+    if (this.specialModeEl) {
+      this.specialModeEl.addEventListener('change', () => {
+        this.newGame();
+      });
+    }
+
     this.gameModeEl.addEventListener('change', () => {
       const isPve = this.gameModeEl.value === 'pve';
       this.aiLevelEl.style.display = isPve ? 'inline-block' : 'none';
@@ -136,6 +145,7 @@ class ChessApp {
         this.statusEl.textContent = 'Chuỗi FEN không hợp lệ!';
         return;
       }
+      this.syncSpecialModeFromSelect();
       this.selectedSquare = null;
       this.legalMoves = [];
       this.hintMove = null;
@@ -147,6 +157,17 @@ class ChessApp {
       this.statusEl.textContent = 'Đã nạp thế cờ từ FEN.';
       this.maybeTriggerAiTurn();
     });
+  }
+
+  syncSpecialModeFromSelect() {
+    const isParasite = this.specialModeEl ? this.specialModeEl.value === 'parasite' : false;
+    if (this.engine.parasite) {
+      this.engine.parasite.setEnabled(isParasite);
+    }
+    if (this.modeBadgeEl) {
+      this.modeBadgeEl.textContent = isParasite ? '⚡ Chế độ: Ký Sinh Kỹ Năng' : 'Chế độ: Cờ Vua Chuẩn';
+      this.modeBadgeEl.classList.toggle('parasite-active', isParasite);
+    }
   }
 
   getHumanColor() {
@@ -277,6 +298,7 @@ class ChessApp {
 
   newGame() {
     this.engine.reset();
+    this.syncSpecialModeFromSelect();
     this.selectedSquare = null;
     this.legalMoves = [];
     this.hintMove = null;
@@ -465,6 +487,10 @@ class ChessApp {
           pieceDiv.className = 'piece';
           pieceDiv.innerHTML = PIECE_SVGS[piece];
 
+          if (this.engine.parasite) {
+            this.engine.parasite.decorateSquare(sq, pieceDiv, r, c);
+          }
+
           const isOwnPiece = this.engine.getColor(piece) === this.engine.turn;
           const canDrag = isOwnPiece && !this.isAiThinking && !this.gameEndedByTimeout &&
             (this.gameModeEl.value === 'pvp' || this.engine.turn === this.getHumanColor());
@@ -495,10 +521,13 @@ class ChessApp {
           this.handleDropMove(fromR, fromC, r, c);
         });
 
-        const isLegalTarget = this.legalMoves.some(m => m.to.r === r && m.to.c === c);
-        if (isLegalTarget) {
+        const legalTargetMove = this.legalMoves.find(m => m.to.r === r && m.to.c === c);
+        if (legalTargetMove) {
           const hint = document.createElement('div');
           hint.className = piece ? 'hint-capture' : 'hint-dot';
+          if (this.engine.parasite) {
+            this.engine.parasite.decorateHint(hint, legalTargetMove);
+          }
           sq.appendChild(hint);
         }
 
