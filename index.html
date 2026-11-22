@@ -34,6 +34,7 @@
           <option value="theme-wood">Màu: Gỗ ấm</option>
           <option value="theme-ocean">Màu: Xanh dương</option>
         </select>
+        <button id="btnOnline" class="btn">🌐 Chơi Online</button>
         <button id="btnNewGame" class="btn primary">Ván Mới</button>
         <button id="btnUndo" class="btn">Đi Lại</button>
         <button id="btnHint" class="btn">Gợi Ý</button>
@@ -90,6 +91,58 @@
     </main>
   </div>
 
+
+  <!-- Sảnh chơi online: giai đoạn 1 (mã phòng + kết nối người chơi) -->
+  <section id="onlinePanel" class="online-panel hidden" aria-modal="true" role="dialog" aria-labelledby="onlineTitle">
+    <div class="online-panel-card">
+      <button id="btnOnlineClose" class="online-close" aria-label="Đóng">✕</button>
+      <h2 id="onlineTitle">Chơi cùng bạn bè</h2>
+      <p class="online-subtitle">Tạo phòng riêng hoặc nhập mã phòng của bạn bè.</p>
+      <div class="online-actions">
+        <button id="btnCreateRoom" class="btn primary">Tạo phòng mới</button>
+        <div class="online-join-row">
+          <input id="roomCodeInput" maxlength="6" autocomplete="off" placeholder="MÃ PHÒNG 6 KÝ TỰ" aria-label="Mã phòng" />
+          <button id="btnJoinRoom" class="btn">Tham gia</button>
+        </div>
+      </div>
+      <div id="roomInfo" class="room-info hidden">
+        <div class="room-code-label">MÃ PHÒNG</div>
+        <div class="room-code-display" id="roomCodeDisplay">------</div>
+        <button id="btnCopyRoomCode" class="btn">📋 Sao chép mã</button>
+        <div id="roomStatus" class="room-status">Đang tạo phòng...</div>
+        <div id="roomRoleLabel" class="room-role"></div>
+        <button id="btnStartOnline" class="btn primary hidden" disabled>♟ Bắt đầu ván</button>
+        <button id="btnOnlinePlay" class="btn primary hidden">Mở bàn cờ</button>
+        <div class="room-player-list">
+          <div id="roomHostStatus">♙ Bạn (Trắng): Đã kết nối</div>
+          <div id="roomGuestStatus">♟ Đối thủ (Đen): Đang chờ...</div>
+        </div>
+        <button id="btnLeaveRoom" class="btn">Rời phòng</button>
+      </div>
+      <p id="onlineMessage" class="online-message" role="status"></p>
+    </div>
+  </section>
+
+  <style>
+    .hidden { display: none !important; }
+    .online-panel { position:fixed; inset:0; z-index:9999; background:rgba(8,12,18,.76); display:flex; align-items:center; justify-content:center; padding:16px; }
+    .online-panel-card { position:relative; width:min(440px,100%); padding:24px; border-radius:18px; background:#17212b; color:#f3f6fa; box-shadow:0 18px 60px #0008; border:1px solid #405160; }
+    .online-panel-card h2 { margin:0 0 8px; }
+    .online-subtitle { color:#b7c4d0; margin:0 0 20px; }
+    .online-close { position:absolute; right:12px; top:12px; border:0; background:transparent; color:inherit; font-size:20px; cursor:pointer; }
+    .online-actions { display:grid; gap:12px; }
+    .online-join-row { display:flex; gap:8px; }
+    .online-join-row input { min-width:0; flex:1; padding:12px; border-radius:10px; border:1px solid #526273; background:#0d151d; color:#fff; text-transform:uppercase; letter-spacing:2px; }
+    .room-info { margin-top:20px; padding:16px; border-radius:12px; background:#0d151d; text-align:center; }
+    .room-code-label { font-size:12px; color:#a8bac9; letter-spacing:2px; }
+    .room-code-display { font-size:32px; font-weight:800; letter-spacing:6px; margin:8px 0 12px; }
+    .room-status { margin:14px 0; color:#d5e5f3; }
+    .room-player-list { text-align:left; display:grid; gap:8px; padding:12px; border-radius:10px; background:#1b2935; margin:12px 0; }
+    .room-role { margin:10px 0; color:#9be3b1; font-weight:600; }
+    .online-message { min-height:20px; color:#ffd27a; margin:12px 0 0; font-size:14px; }
+    @media(max-width:480px){ .online-panel-card{padding:20px 16px;} .online-join-row{flex-direction:column;} .room-code-display{font-size:26px;} }
+  </style>
+
   <!-- Modal Phong Cấp -->
   <div id="promotionModal" class="modal hidden">
     <div class="modal-content">
@@ -111,5 +164,7 @@
   <script src="engine.js"></script>
   <script src="ai.js"></script>
   <script src="app.js"></script>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="online.js"></script>
 </body>
 </html>
