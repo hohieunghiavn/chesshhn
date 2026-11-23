@@ -175,6 +175,8 @@ class ChessApp {
   syncSpecialModeFromSelect() {
     const mode = this.specialModeEl ? this.specialModeEl.value : 'classic';
     this.isVietnam = mode === 'vietnam';
+    const boardWrap = document.querySelector('.board-wrapper');
+    if (boardWrap) boardWrap.classList.toggle('vn-board', this.isVietnam);
     const isParasite = mode === 'parasite';
     if (this.engine.parasite) {
       this.engine.parasite.setEnabled(isParasite);
