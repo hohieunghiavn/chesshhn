@@ -1,4 +1,7 @@
 // Điều khiển giao diện, kéo thả quân cờ, đồng hồ tính giờ, FEN, gợi ý, âm thanh & chế độ chơi đặc biệt
+// Cột của từng loại quân trong ảnh sprite vn_pieces.png (hàng trên: Đỏ = Trắng, hàng dưới: Xanh = Đen)
+const VN_PIECE_COLS = { K: 0, Q: 1, R: 2, B: 3, N: 4, P: 5 };
+
 class ChessApp {
   constructor() {
     this.engine = new ChessEngine();
@@ -159,13 +162,25 @@ class ChessApp {
     });
   }
 
+  // Trả về HTML của quân cờ: ảnh sprite (chế độ Việt Nam) hoặc SVG chuẩn
+  pieceHTML(piece) {
+    if (this.isVietnam) {
+      const col = VN_PIECE_COLS[piece[1]];
+      const row = piece[0] === 'w' ? 0 : 1;
+      return `<span class="vn-piece" style="background-position:${col * 20}% ${row * 100}%"></span>`;
+    }
+    return PIECE_SVGS[piece];
+  }
+
   syncSpecialModeFromSelect() {
-    const isParasite = this.specialModeEl ? this.specialModeEl.value === 'parasite' : false;
+    const mode = this.specialModeEl ? this.specialModeEl.value : 'classic';
+    this.isVietnam = mode === 'vietnam';
+    const isParasite = mode === 'parasite';
     if (this.engine.parasite) {
       this.engine.parasite.setEnabled(isParasite);
     }
     if (this.modeBadgeEl) {
-      this.modeBadgeEl.textContent = isParasite ? '⚡ Chế độ: Ký Sinh Kỹ Năng' : 'Chế độ: Cờ Vua Chuẩn';
+      this.modeBadgeEl.textContent = isParasite ? '⚡ Chế độ: Ký Sinh Kỹ Năng' : this.isVietnam ? '🇻🇳 Chế độ: Cờ Vua Việt Nam' : 'Chế độ: Cờ Vua Chuẩn';
       this.modeBadgeEl.classList.toggle('parasite-active', isParasite);
     }
   }
@@ -363,7 +378,7 @@ class ChessApp {
     moves.forEach(move => {
       const btn = document.createElement('button');
       btn.className = 'promo-btn';
-      btn.innerHTML = PIECE_SVGS[move.promotion];
+      btn.innerHTML = this.pieceHTML(move.promotion);
       btn.addEventListener('click', () => {
         this.promoModal.classList.add('hidden');
         this.executeMove(move);
@@ -485,7 +500,7 @@ class ChessApp {
         if (piece) {
           const pieceDiv = document.createElement('div');
           pieceDiv.className = 'piece';
-          pieceDiv.innerHTML = PIECE_SVGS[piece];
+          pieceDiv.innerHTML = this.pieceHTML(piece);
 
           if (this.engine.parasite) {
             this.engine.parasite.decorateSquare(sq, pieceDiv, r, c);
@@ -595,8 +610,8 @@ class ChessApp {
     const topList = topColor === 'w' ? capturedByWhite : capturedByBlack;
     const bottomList = topColor === 'w' ? capturedByBlack : capturedByWhite;
 
-    this.topCapturedEl.innerHTML = topList.map(p => PIECE_SVGS[p]).join('');
-    this.bottomCapturedEl.innerHTML = bottomList.map(p => PIECE_SVGS[p]).join('');
+    this.topCapturedEl.innerHTML = topList.map(p => this.pieceHTML(p)).join('');
+    this.bottomCapturedEl.innerHTML = bottomList.map(p => this.pieceHTML(p)).join('');
   }
 }
 

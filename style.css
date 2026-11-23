@@ -122,3 +122,8 @@ input{cursor:text}
   .sheet-card{width:100%;border-radius:18px 18px 0 0;padding:20px 16px 24px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Chế độ Cờ vua Việt Nam: quân cờ dạng ảnh sprite (hàng 1: Đỏ/Trắng, hàng 2: Xanh/Đen) */
+.vn-piece{display:block;height:100%;aspect-ratio:4/5;max-width:100%;background:url('vn_pieces.png') no-repeat;background-size:600% 200%;filter:drop-shadow(0 2px 2px #0006);pointer-events:none}
+.captured-pieces .vn-piece{height:22px;width:auto;margin-right:-2px;filter:none}
+.promo-btn .vn-piece{margin:0 auto}
